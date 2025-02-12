@@ -1,4 +1,4 @@
-# stable-audio-tools
+# stable-audio-tools LoRA and LISA 
 Training and inference code for audio generation models
 
 This code is from original code of ["stable-audio-tools"](https://github.com/Stability-AI/stable-audio-tools?tab=readme-ov-file) and ["stable-audio-LoRAW"](https://github.com/NeuralNotW0rk/LoRAW). This is also an experimental code, so it may not work well.
