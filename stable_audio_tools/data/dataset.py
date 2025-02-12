@@ -100,12 +100,20 @@ def get_audio_filenames(
     filenames = []
     if type(paths) is str:
         paths = [paths]
-    for path in paths:               # get a list of relevant filenames
-        if keywords is not None:
-            subfolders, files = keyword_scandir(path, exts, keywords)
+    for path in paths:
+        if os.path.isfile(path):
+            # If the path is a file, add it directly to the filenames list
+            if any(path.endswith(ext) for ext in exts):
+                filenames.append(path)
+                # print(path, 1)
         else:
-            subfolders, files = fast_scandir(path, exts)
-        filenames.extend(files)
+            # If the path is a directory, scan for files
+            if keywords is not None:
+                subfolders, files = keyword_scandir(path, exts, keywords)
+            else:
+                subfolders, files = fast_scandir(path, exts)
+            filenames.extend(files)
+            # print(path, len(files))
     return filenames
 
 def get_latent_filenames(
@@ -840,7 +848,7 @@ def create_dataloader_from_config(dataset_config, batch_size, sample_size, sampl
                     custom_metadata_fn=custom_metadata_fn
                 )
             )
-
+        
         train_set = SampleDataset(
             configs,
             sample_rate=sample_rate,
@@ -848,7 +856,8 @@ def create_dataloader_from_config(dataset_config, batch_size, sample_size, sampl
             random_crop=dataset_config.get("random_crop", True),
             force_channels=force_channels
         )
-
+        print(train_set)
+        
         return torch.utils.data.DataLoader(train_set, batch_size, shuffle=shuffle,
                                 num_workers=num_workers, persistent_workers=True, pin_memory=True, drop_last=dataset_config.get("drop_last", True), collate_fn=collation_fn)
 
