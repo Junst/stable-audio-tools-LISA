@@ -1,6 +1,9 @@
 # stable-audio-tools
 Training and inference code for audio generation models
 
+This code is from original code of ["stable-audio-tools"](https://github.com/Stability-AI/stable-audio-tools?tab=readme-ov-file) and ["stable-audio-LoRAW"](https://github.com/NeuralNotW0rk/LoRAW). This is also an experimental code, so it may not work well.
+
+
 # Install
 
 The library can be installed from PyPI with:
@@ -18,37 +21,82 @@ Requires PyTorch 2.0 or later for Flash Attention support
 
 Development for the repo is done in Python 3.8.10
 
-# Interface
 
-A basic Gradio interface is provided to test out trained models. 
+# LoRA Training
+I used this script file.
 
-For example, to create an interface for the [`stable-audio-open-1.0`](https://huggingface.co/stabilityai/stable-audio-open-1.0) model, once you've accepted the terms for the model on Hugging Face, you can run:
 ```bash
-$ python3 ./run_gradio.py --pretrained-name stabilityai/stable-audio-open-1.0
+export WANDB_API_KEY="<YOUR-WANDB_API_KEY>"
+export NCCL_DEBUG=INFO
+export NCCL_BLOCKING_WAIT=1
+export NCCL_P2P_DISABLE=1
+export NCCL_IB_DISABLE=1
+export CUDA_LAUNCH_BLOCKING=1
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True 
+
+source ~/.bashrc
+cd stable-audio-tools_LISA
+source venv/bin/activate
+
+TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+SAVE_DIR="/stable-audio-tools_LISA/test/run_${TIMESTAMP}/"
+mkdir -p "$SAVE_DIR"
+
+# python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"
+# nvidia-smi
+
+# Set default values here
+CONFIG_FILE="/stable-audio-tools_LISA/defaults.ini"
+# PRETRANSFORM_CKPT_PATH="your_checkpoint_path"
+CHECKPOINT_EVERY="10000"
+BATCH_SIZE="1"
+NUM_GPUS="3"
+NUM_NODES="1"
+ACCUM_BATCHES="2"
+STRATEGY="ddp_find_unused_parameters_true"
+PRECISION="16-mixed"
+NUM_WORKERS="1"
+SEED="42"
+USE_LORA="true"
+# LORA_CKPT_PATH="your_lora_checkpoint_path"
+# RELORA_EVERY="0"
+QUANTIZE="false"
+
+# Run training script with the variables set above
+stdbuf -oL -eL python3 /stable-audio-tools_LISA/train.py \
+    --config-file "$CONFIG_FILE" \
+    --save-dir "$SAVE_DIR" \
+    --checkpoint-every "$CHECKPOINT_EVERY" \
+    --batch-size "$BATCH_SIZE" \
+    --num-gpus "$NUM_GPUS" \
+    --num-nodes "$NUM_NODES" \
+    --accum-batches "$ACCUM_BATCHES" \
+    --strategy "$STRATEGY" \
+    --precision "$PRECISION" \
+    --num-workers "$NUM_WORKERS" \
+    --seed "$SEED" \
+    --use-lora "$USE_LORA" \
+    --quantize "$QUANTIZE" \
+    | tee "logs/train_log_${TIMESTAMP}.out"
+
+#  --pretransform-ckpt-path "$PRETRANSFORM_CKPT_PATH" \
+#    --lora-ckpt-path "$LORA_CKPT_PATH" \
+#   --relora-every "$RELORA_EVERY" \
 ```
 
-The `run_gradio.py` script accepts the following command line arguments:
+# LISA Training
+If you want to use LISA Training go to train.py and change this code.
+```python
+if args.use_lora == 'true':
+        lora = create_lora_from_config(model_config, model, use_lisa=True) # ⬅️ change this to "True'
+        if args.lora_ckpt_path:
+            lora.lora_weights(torch.load(args.lora_ckpt_path, map_location="cpu")["state_dict"])
+        lora.activate()
+        lora.apply_lisa_strategy()
+```
 
-- `--pretrained-name`
-  - Hugging Face repository name for a Stable Audio Tools model
-  - Will prioritize `model.safetensors` over `model.ckpt` in the repo
-  - Optional, used in place of `model-config` and `ckpt-path` when using pre-trained model checkpoints on Hugging Face
-- `--model-config`
-  - Path to the model config file for a local model
-- `--ckpt-path`
-  - Path to unwrapped model checkpoint file for a local model
-- `--pretransform-ckpt-path` 
-  - Path to an unwrapped pretransform checkpoint, replaces the pretransform in the model, useful for testing out fine-tuned decoders
-  - Optional
-- `--share`
-  - If true, a publicly shareable link will be created for the Gradio demo
-  - Optional
-- `--username` and `--password`
-  - Used together to set a login for the Gradio demo
-  - Optional
-- `--model-half`
-  - If true, the model weights to half-precision
-  - Optional
+The other in below description is same with original README.
 
 # Training
 
@@ -152,6 +200,35 @@ The following properties are defined in the top level of the model configuration
 ## Dataset config
 `stable-audio-tools` currently supports two kinds of data sources: local directories of audio files, and WebDataset datasets stored in Amazon S3. More information can be found in [the dataset config documentation](docs/datasets.md)
 
-# Todo
-- [ ] Add troubleshooting section
-- [ ] Add contribution guidelines 
+
+# Interface
+
+A basic Gradio interface is provided to test out trained models. 
+
+For example, to create an interface for the [`stable-audio-open-1.0`](https://huggingface.co/stabilityai/stable-audio-open-1.0) model, once you've accepted the terms for the model on Hugging Face, you can run:
+```bash
+$ python3 ./run_gradio.py --pretrained-name stabilityai/stable-audio-open-1.0
+```
+
+The `run_gradio.py` script accepts the following command line arguments:
+
+- `--pretrained-name`
+  - Hugging Face repository name for a Stable Audio Tools model
+  - Will prioritize `model.safetensors` over `model.ckpt` in the repo
+  - Optional, used in place of `model-config` and `ckpt-path` when using pre-trained model checkpoints on Hugging Face
+- `--model-config`
+  - Path to the model config file for a local model
+- `--ckpt-path`
+  - Path to unwrapped model checkpoint file for a local model
+- `--pretransform-ckpt-path` 
+  - Path to an unwrapped pretransform checkpoint, replaces the pretransform in the model, useful for testing out fine-tuned decoders
+  - Optional
+- `--share`
+  - If true, a publicly shareable link will be created for the Gradio demo
+  - Optional
+- `--username` and `--password`
+  - Used together to set a login for the Gradio demo
+  - Optional
+- `--model-half`
+  - If true, the model weights to half-precision
+  - Optional
